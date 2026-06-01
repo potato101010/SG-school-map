@@ -465,7 +465,7 @@ export default function SingaporeMap() {
   useEffect(() => {
     if (!ready || mapRef.current || !mapEl.current) return;
     const L = window.L;
-    const map = L.map(mapEl.current, { zoomControl: true, preferCanvas: true }).setView([1.352, 103.82], 12);
+    const map = L.map(mapEl.current, { zoomControl: true, preferCanvas: true, tap: false, tapTolerance: 0 }).setView([1.352, 103.82], 12);
     mapRef.current = map;
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
@@ -672,6 +672,29 @@ export default function SingaporeMap() {
   }, [filters]);
 
   const [minimized, setMinimized] = useState(true);
+  const [query, setQuery] = useState("");
+  const [showResults, setShowResults] = useState(false);
+
+  const searchResults = query.length >= 2
+    ? SCHOOLS.filter(sc => sc.n.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+    : [];
+
+  const selectSchool = (sc) => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setView([sc.lat, sc.lng], 16, { animate: true });
+    const refs = layersRef.current;
+    if (refs.schools) {
+      refs.schools.eachLayer(layer => {
+        const ll = layer.getLatLng && layer.getLatLng();
+        if (ll && Math.abs(ll.lat - sc.lat) < 0.0001 && Math.abs(ll.lng - sc.lng) < 0.0001) {
+          layer.openPopup();
+        }
+      });
+    }
+    setQuery(sc.n);
+    setShowResults(false);
+  };
 
   const sectionBtn = {
     display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -707,86 +730,12 @@ export default function SingaporeMap() {
 
       <div ref={mapEl} style={{ position: "absolute", inset: 0 }} />
 
-      {/* School search */}
-      {(() => {
-        const [query, setQuery] = React.useState("");
-        const [showResults, setShowResults] = React.useState(false);
-        const results = query.length >= 2
-          ? SCHOOLS.filter(sc => sc.n.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
-          : [];
-        const select = (sc) => {
-          const map = mapRef.current;
-          if (!map) return;
-          map.setView([sc.lat, sc.lng], 16, { animate: true });
-          // Open the popup for this school
-          const refs = layersRef.current;
-          if (refs.schools) {
-            refs.schools.eachLayer(layer => {
-              const ll = layer.getLatLng && layer.getLatLng();
-              if (ll && Math.abs(ll.lat - sc.lat) < 0.0001 && Math.abs(ll.lng - sc.lng) < 0.0001) {
-                layer.openPopup();
-              }
-            });
-          }
-          setQuery(sc.n);
-          setShowResults(false);
-        };
-        return (
-          <div style={{ position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 1001, width: 320 }}>
-            <div style={{ position: "relative" }}>
-              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 15, pointerEvents: "none" }}>🔍</span>
-              <input
-                value={query}
-                onChange={e => { setQuery(e.target.value); setShowResults(true); }}
-                onFocus={() => setShowResults(true)}
-                onBlur={() => setTimeout(() => setShowResults(false), 150)}
-                placeholder="Search primary schools…"
-                style={{
-                  width: "100%", boxSizing: "border-box",
-                  padding: "10px 14px 10px 36px", fontSize: 13,
-                  borderRadius: results.length && showResults ? "10px 10px 0 0" : 10,
-                  border: "1px solid #3a404f", outline: "none",
-                  background: "rgba(20,23,30,.96)", color: "#e6e9f0",
-                  fontFamily: "system-ui", backdropFilter: "blur(8px)",
-                  boxShadow: "0 4px 20px rgba(0,0,0,.5)",
-                }}
-              />
-              {query && (
-                <button onClick={() => { setQuery(""); setShowResults(false); }}
-                  style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-                    background: "none", border: "none", color: "#6b7585", cursor: "pointer", fontSize: 16, padding: 2 }}>✕</button>
-              )}
-            </div>
-            {results.length > 0 && showResults && (
-              <div style={{
-                background: "rgba(20,23,30,.97)", border: "1px solid #3a404f", borderTop: "none",
-                borderRadius: "0 0 10px 10px", overflow: "hidden",
-                boxShadow: "0 8px 24px rgba(0,0,0,.5)",
-              }}>
-                {results.map((sc, i) => (
-                  <div key={sc.n} onMouseDown={() => select(sc)} style={{
-                    padding: "9px 14px", cursor: "pointer", fontFamily: "system-ui",
-                    fontSize: 13, color: "#d1d8e8", borderTop: i > 0 ? "1px solid #2e3340" : "none",
-                    display: "flex", alignItems: "center", gap: 8,
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,.07)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                  >
-                    <span style={{ fontSize: 14 }}>
-                      {sc.a === "through" ? "🔗" : sc.a === "affiliated" ? "🤝" : sc.a === "mission" ? "⛪" : "🎓"}
-                    </span>
-                    <span style={{ flex: 1 }}>{sc.n}</span>
-                    {sc.mk && <span style={{ background: "#7c3aed", color: "#fff", fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3 }}>MK</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
       {/* Control panel */}
-      <div style={{
+      <div
+        onTouchStart={e => e.stopPropagation()}
+        onTouchEnd={e => e.stopPropagation()}
+        onTouchMove={e => e.stopPropagation()}
+        style={{
         position: "absolute", top: 16, right: 16, zIndex: 1000, width: 258,
         background: "rgba(20,23,30,.96)", color: "#e6e9f0", borderRadius: 13,
         border: "1px solid #2e3340", backdropFilter: "blur(8px)",
@@ -827,6 +776,53 @@ export default function SingaporeMap() {
         {!minimized && (
           <div style={{ padding: "10px 14px 14px" }}>
 
+            {/* ── School search ── */}
+            <div style={{ position: "relative", marginBottom: 12 }}>
+              <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 15, pointerEvents: "none" }}>🔍</span>
+              <input
+                value={query}
+                onChange={e => { setQuery(e.target.value); setShowResults(true); }}
+                onFocus={() => setShowResults(true)}
+                onBlur={() => setTimeout(() => setShowResults(false), 150)}
+                placeholder="Search schools…"
+                style={{
+                  width: "100%", boxSizing: "border-box",
+                  padding: "8px 30px 8px 30px", fontSize: 16,
+                  borderRadius: searchResults.length && showResults ? "7px 7px 0 0" : 7,
+                  border: "1px solid #3a404f", outline: "none",
+                  background: "rgba(255,255,255,.06)", color: "#e6e9f0",
+                  fontFamily: "system-ui",
+                }}
+              />
+              {query && (
+                <button onClick={() => { setQuery(""); setShowResults(false); }}
+                  style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                    background: "none", border: "none", color: "#6b7585", cursor: "pointer", fontSize: 16, padding: 2 }}>✕</button>
+              )}
+              {searchResults.length > 0 && showResults && (
+                <div style={{
+                  position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10,
+                  background: "rgba(20,23,30,.99)", border: "1px solid #3a404f", borderTop: "none",
+                  borderRadius: "0 0 7px 7px", overflow: "hidden",
+                  boxShadow: "0 8px 20px rgba(0,0,0,.6)",
+                }}>
+                  {searchResults.map((sc, i) => (
+                    <div key={sc.n} onMouseDown={() => selectSchool(sc)} style={{
+                      padding: "9px 10px", cursor: "pointer", fontFamily: "system-ui",
+                      fontSize: 13, color: "#d1d8e8", borderTop: i > 0 ? "1px solid #2e3340" : "none",
+                      display: "flex", alignItems: "center", gap: 7,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,.08)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span>{sc.a === "through" ? "🔗" : sc.a === "affiliated" ? "🤝" : sc.a === "mission" ? "⛪" : "🎓"}</span>
+                      <span style={{ flex: 1 }}>{sc.n}</span>
+                      {sc.mk && <span style={{ background: "#7c3aed", color: "#fff", fontSize: 7, fontWeight: 800, padding: "1px 3px", borderRadius: 3 }}>MK</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* ── Filters ── */}
             <button onClick={() => toggleSection("filters")} style={sectionBtn}>
