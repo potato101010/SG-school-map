@@ -643,7 +643,7 @@ export default function SingaporeMap() {
     });
   }, [filters]);
 
-  const [minimized, setMinimized] = useState(false);
+  const [minimized, setMinimized] = useState(true);
 
   const sectionBtn = {
     display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -696,7 +696,7 @@ export default function SingaporeMap() {
           cursor: "default",
         }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: 0.4 }}>🇸🇬 Singapore Map</div>
+            <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: 0.4 }}>Filters / Legend</div>
             {!minimized && (
               <div style={{ fontSize: 10.5, color: "#6e7a90", marginTop: 2, fontFamily: "system-ui" }}>
                 MRT · Schools · Areas
